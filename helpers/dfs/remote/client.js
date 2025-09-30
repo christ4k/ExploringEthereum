@@ -159,6 +159,7 @@ module.exports = class Client {
         const {methods, ...exp} = experiment;
         this.methods = methods;
         this.exp = exp;
+        this.exp.nodeAddress = exp.nodeAddress.toString()
         this.socket.emit('running', exp);
 
         // this promise will be resolved when the experiment is finished

@@ -4,17 +4,18 @@
   "description": "",
   "main": "interact.js",
   "scripts": {
-    "test": "LOGS_PATH=./test_logs jest --runInBand",
+      "test": "LOGS_PATH=./test_logs jest -t 'run all experiments' --runInBand",
     "server": "node helpers/dfs/remote/run-server.js",
-    "remote-experiments": "node dfsRemoteExperiments.js",
+    "remote-experiments": "node dfsRemoteExperiments.js --swarm",
     "decrypt": "node helpers/decryptAccount.js",
     "clear-ipfs-repo": "node clearIPFSRepo.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@ethersphere/bee-js": "^6.0.0",
+    "@ethersphere/bee-js": "^10.0.0",
     "@fairdatasociety/bmt-js": "^2.1.0",
+    "@google/gemini-cli": "^0.5.5",
     "@truffle/hdwallet-provider": "^2.0.4",
     "bs58": "^5.0.0",
     "colors": "^1.4.0",

@@ -1,17 +1,29 @@
 const utils = require('./helpers/utils.js');
 const csv = require('./helpers/csvModule.js')
-const { SwarmExperiment } = require('./helpers/dfs/experiments');
+const { SwarmExperiment, ExtendedSwarmExperiment } = require('./helpers/dfs/experiments');
+
+
+// const {} =
 
 
 (async () => {
-    const swarm = new SwarmExperiment({ keepStats: true, data: {start: '4kb', maxStringSize: '16kb'} });
+    const swarm = new ExtendedSwarmExperiment({ keepStats: true, data: {start: '4kb', maxStringSize: '16kb'} });
 
     // upload
-    await swarm.loopUpload(1);
+    const results = await swarm.uploadStrings();
+    console.log(results)
 
+    console.log(await swarm.isLocalChunk(results[0]))
+    swarm.deleteLocalChunk(results[0]).then(() => console.log('chunk deleted'))
+    
+    const id = await swarm.getId()
+    console.log(await swarm.peerReachable(id))
+    
+    await swarm.disconnectFromPeer('676790fcae312292ffc17b7f7c84d5b9acc51ef0ea3f27d0ff3bada3362abc5d')
     // retrieve
-    const hashes = utils.dfs.getIdentifiers('swarm');
-    await swarm.loopDownload(hashes, 1);
+    // const hashes = utils.dfs.getIdentifiers('swarm');
+    await swarm.downloadStrings(results);
+
 })();
 
 

@@ -1,6 +1,6 @@
 const utils = require('../utils.js');
 const performance = require('perf_hooks').performance;
-const { Bee, BeeDebug } = require("@ethersphere/bee-js");
+const { Bee, Size, Duration } = require("@ethersphere/bee-js");
 const { CSV } = require('../csvModule.js');
 const http = require("http");
 const Logger = require('../logger');
@@ -26,7 +26,6 @@ const OPTIONS = {
 class SwarmBase {
     name = 'swarm';
     bee;
-    beeDebug;
     options;
     csv;
     nodeId;
@@ -35,20 +34,19 @@ class SwarmBase {
         // merge the defaultOptions with the input options
         this.options = utils.core.getOptions(opts, OPTIONS, true);
         this.bee = new Bee("http://localhost:1633");
-        this.beeDebug = new BeeDebug("http://localhost:1635");
     }
 
     async getId() {
-        return this.nodeId || this.beeDebug.getNodeAddresses().then(res => {
-            this.nodeId = res.overlay;
-            return res.overlay;
+        return this.nodeId || this.bee.getNodeAddresses().then(res => {
+            this.nodeId = res.overlay.toString();
+            return res.overlay.toString();
         });
     }
 
     async findUsableBatch() {
         try {
             // check if we have a usable non expired postageBatch
-            const availableBatches = await this.beeDebug.getAllPostageBatch();
+            const availableBatches = await this.bee.getPostageBatches();
             for (const { depth, bucketDepth, utilization, batchTTL, batchID } of availableBatches) {
                 if (batchTTL >= 3600 && utilization <= (Math.pow(2, depth - bucketDepth) - 1)) return batchID;
             }
@@ -60,10 +58,23 @@ class SwarmBase {
 
     // TODO: Approximate the amount of data that can be uploaded with this postage batch. If it does not suffice, a new batch should be created
     async getPostageBatch() {
-        let batchId = await this.findUsableBatch();
-        if (!batchId) {
-            batchId = await this.beeDebug.createPostageBatch(POSTAGE_STAMPS_AMOUNT, POSTAGE_STAMPS_DEPTH)
-            logger.info('Using newly created batchId:', batchId);
+        // let batchId = await this.findUsableBatch();
+        // if (!batchId) {
+        //     batchId = await this.bee.createPostageBatch(POSTAGE_STAMPS_AMOUNT, POSTAGE_STAMPS_DEPTH)
+        //     logger.info('Using newly created batchId:', batchId);
+        // }
+        // return batchId;
+        const bee = new Bee('http://localhost:1633')
+        let batchId
+
+        const batches = await bee.getPostageBatches()
+        console.log(batches)
+        const usable = batches.find(x => x.usable)
+
+        if (usable) {
+            batchId = usable.batchID
+        } else {
+            batchId = await bee.buyStorage(Size.fromGigabytes(1), Duration.fromDays(7))
         }
         return batchId;
     }
@@ -74,14 +85,17 @@ class SwarmBase {
 
         // we need a postageBatch to upload the data
         const batchId = await this.getPostageBatch();
-
         // measure upload latency
         const begin = performance.now();
+        //const result = await this.bee.uploadData(batchId, jsonString);
+
         const result = await this.bee.uploadData(batchId, data, localOptions.uploadOptions);
+
+        console.log("uploaded");
         const uploadLatency = (performance.now() - begin).toFixed(4);
 
         // set up the upload process's stats
-        const hash = result.reference;
+        const hash = result.reference.toString();
         const info = utils.core.type(data);
         const toWrite = {
             basic: [Date().slice(0, 24), hash, uploadLatency],
@@ -108,8 +122,8 @@ class SwarmBase {
         const retrievalLatency = (performance.now() - begin).toFixed(4);
 
         // set up the download process's stats
-        data = new TextDecoder("utf-8").decode(data);
-        const info = utils.core.type(data);
+        // data = new TextDecoder("utf-8").decode(data.toString());
+        const info = utils.core.type(data.toString());
         const toWrite = {
             basic: [Date().slice(0, 24), retrievalLatency],
             inputInfo: info
@@ -129,11 +143,11 @@ class SwarmBase {
 
     async disconnectFromPeer(peerAddress) {
         try {
-            const peers = await this.beeDebug.getPeers();
+            const peers = await this.bee.getPeers();
             const connected = peers.find(peer => peer.address === peerAddress);
 
             if (connected) {
-                await this.beeDebug.removePeer(peerAddress);
+                await this.bee.removePeer(peerAddress);
                 logger.info('Disconnected from peer: ', peerAddress);
             } else {
                 logger.info('Not connected to peer: ', peerAddress);
@@ -175,7 +189,7 @@ class SwarmBase {
 
     async peerReachable(peer) {
         if (await this.getId() === peer) return true;
-        return this.beeDebug.pingPeer(peer).then(() => true).catch(() => false);
+        return this.bee.pingPeer(peer).then(() => true).catch(() => false);
     }
 }
 
